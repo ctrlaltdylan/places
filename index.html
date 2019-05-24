@@ -2,6 +2,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <head>
     <link rel="stylesheet" type="text/css" href="public/styles.css" />
+    <link rel="stylesheet" type="text/css" href="public/animate.css" />
     <style>
 
       #map {
@@ -10,7 +11,7 @@
       }
       /* Optional: Makes the sample page fill the window. */
       html, body {
-        height: 100%;
+        /*height: 100%;*/
         margin: 0;
         padding: 0;
       }
@@ -41,58 +42,133 @@
     overflow-y: scroll;
   }
 
+  #current_album {
+    position: fixed;
+    z-index: 100;
+    padding: 20px;
+    width: 100%;
+    text-shadow: 2px 2px 5px #2B0000;
+    font-size: 2em;
+
+    color: white;
+    animation-delay: 0s;
+    animation-duration: 1s;
+  }
+
 
     </style>
   </head>
   <title>Places</title>
   <body>
+    <div id="top" style="display:none;position:absolute;top:0;width:0;height:0;"></div>
     <div class="container">
-        <div id="map"></div>
+        <div id="map">
+        </div>
       <div id="place">
-        <img src='img/beach-long.jpg' />
-        <img src='img/starfish.jpg' />
+        <div id="current_album"></div>
       </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="public/jquery-scrollspy.js"></script>
     <script>
-      $(document).ready(function() {
-        $.getJSON('/api/images',function(paths) {
-          paths.forEach(function(path) {
-            $('#place').append($('<img src="/img/' + path + '"/>'));
+        var current_album = '';
+      function enteringNewPhoto(map, element) {
+        var current_photos_album = $(element).data('album');
+        if(current_album != current_photos_album) {
+            $('#current_album').addClass('animated fadeOutUp').one('webkitAnimationEnd oanimationend msAnimationEnd animationend', function() {
+                $('#current_album').removeClass('animated fadeOutUp');
+                $('#current_album').text(current_photos_album)
+                $('#current_album').addClass('animated fadeInUp')
+            });
+
+            var place = places.filter(function(place) {
+               return place.local_title == current_photos_album;
+            })[0];
+
+            addMarker(map, place);
+            current_album = current_photos_album;
+        }
+      }
+
+      function bootstrapImages(map) {
+          $(document).ready(function() {
+
+            $.getJSON('/api/images', function(places) {
+                  places.forEach(function(place) {
+                    place.images.forEach(function(path) {
+                        var $image = $('<img class="photo" data-album="' + place.album + '" src="/img/storyline/' + place.album + '/' + path + '"/>');
+                        $image.on('load', function() {
+                            var $this = $(this);
+
+                            setTimeout(function() {
+                                var position = $this.position();
+                                var offset = $this.offset();
+
+                                // window.console.log('min: ' + position.top + ' / max: ' + window.parseInt(position.top + this.naturalHeight, 10));
+                                $this.scrollspy({
+                                    container: $('#place'),
+                                    min: position.top,
+                                    max: position.top + this.naturalHeight,
+                                    onEnter: function onEnter(element/*, position*/) {
+                                        enteringNewPhoto(map, element);
+                                        // window.console.log('Entering ' + element.id);
+                                    },
+                                    onLeave: function onLeave(element/*, position*/) {
+                                        // window.console.log('Leaving ' + element.id);
+                                    }
+                                });
+
+                            }.bind(this), 100)
+
+                        }).appendTo('#place')
+
+                    });
+                  });
+            });
           });
-        });
-      });
+        }
+
 
       var places = [
         {
           name: 'Seattle',
+          local_title: 'seattle, wa',
           coordinates: { lat: 47.676891, lng: -122.205986 }
         },
         {
           name: 'Fort Stevens',
+          local_title: 'astoria, oregon',
           coordinates: { lat: 46.182970, lng: -123.968330 }
         },
         {
           name: 'Cannon Beach',
+          local_title: 'cannon beach, oregon',
           coordinates: { lat: 45.887959, lng: -123.962242 }
         },
         {
           name: 'Cape Meares',
+          local_title: 'cape meares, oregon',
           coordinates: { lat: 45.501740, lng: -123.953430 }
         }
       ];
 
       // bootstrap after the map is completed
       function bootstrap(map) {
+
+        bootstrapImages(map);
+
         var directionsDisplay;
         var directionsService = new google.maps.DirectionsService();
-        directionsDisplay = new google.maps.DirectionsRenderer();
+        directionsDisplay = new google.maps.DirectionsRenderer({
+            suppressInfoWindows: true,
+            suppressMarkers: true,
+        });
         directionsDisplay.setMap(map);
 
         // add markers to map
-        places.forEach(function(place) {
-          addMarker(map, place);
-        });
+        // places.forEach(function(place) {
+        //   addMarker(map, place);
+        // });
 
         var waypoints = places.map(function(place) {
           return {
@@ -133,7 +209,8 @@
           position: place.coordinates,
           title: place.name,
           map: map,
-          icon: image
+          animation: google.maps.Animation.DROP,
+          // icon: image
         });
 
         // marker.setIcon('public/class-b.png');
